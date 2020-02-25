@@ -1,0 +1,34 @@
+﻿---------------
+ICON: https://i.imgur.com/7jaYCNf.png
+---------------
+
+# Vehicular Stuff
+---
+![alt text](https://i.imgur.com/LKuTRAg.gif "Drive with your friends in style!")
+
+Have you ever not gone fast enough? Did you ever wish you could roadkill those annoying clayman? Well ease up, because ***Vehicular Stuff*** brings vehicles for you to drive with friends! **Now compatible with online coop!**
+
+### Currently added vehicles (more to come soon™):
++ __*The Warthog*__ - a favourite for Halo fans! Complete with a minigun and nifty drifty sounds
+    
+    ![animated warthog image should be here](https://i.imgur.com/n678VkO.gif "Drive with your friends in style!")
+
++ __*The Pogo Stick*__ - hours of fun packed into a springy-stick that can jump around the landscape!
+    
+    ![animated pogo image should be here](https://i.imgur.com/c2d6uFP.gif "Pogo like it's 1980!")
+
+### Flags (add them on your profile)
++ **General:**
+    + ``vehicular_no_sound`` - disable all mod sounds
++ **Warthog:**
+    + ``vehicular_disable_warthog`` - the Warthog will never spawn
+    + ``vehicular_warthog_no_sound`` - all Warthog sounds will be disabled
++ **Pogo:**
+    + ``vehicular_disable_pogo`` - the Pogo Stick will never spawn
+    + ``vehicular_pogo_no_sound`` - all Pogo Stick sounds will be disabled
+    
+### Changelog:
++ **0.1.0** - Initial release.
++ ***1.0.0*** - Updated to RoRML 0.2. Fixed bug with grabbing ropes and cleaned buffs' visual effect
+    + **1.0.1** - Minor bug fix.
++ ***1.1.0*** - **Multiplayer compatibility and major code rewrite/overhaul!** ⁽ᵒⁿˡʸ ᵗᵒᵒᵏ ʰᵃˡᶠ ᵃ ʸᵉᵃʳ ˡᵐᵃᵒ⁾

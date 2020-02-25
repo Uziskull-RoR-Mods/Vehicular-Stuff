@@ -1,0 +1,8 @@
+{
+    "name": "Vehicular Stuff",
+    "description": "Add some vehicles to the land of Risk of Rain!",
+	"internalname": "vehicularStuff",
+    "version": "1.1.0",
+    "author": "Uziskull",
+    "mpcompat": true
+}

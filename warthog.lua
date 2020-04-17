@@ -66,6 +66,17 @@ local function getPos(player, thing)
     end
 end
 
+local function findVehicleById(vehObj, id)
+    local inst = nil
+    for _, i in ipairs(vehObj:findAll()) do
+        if i:getData().id == id then
+            inst = i
+            break
+        end
+    end
+    return inst
+end
+
 warthog:addCallback("create", function(self)
     local instData = self:getData()
     self.mask = sprites.mask
@@ -360,7 +371,7 @@ end)
 warthogCreatePacket = net.Packet("Create Warthog", function(sender, numWarthogs, ...) -- x1, y1, color1, x2, y2, color2, x3, y3, color3, x4, y4, color4)
     local warthogs = {...}
     for i = 1, numWarthogs do
-        j = 1 + (i - 1) * 3
+        j = 1 + (i - 1) * 4
         local winst = warthog:create(warthogs[j], warthogs[j+1])
         winst:getData().id = warthogs[j+2]
         winst.xscale = warthogs[j+3]
@@ -375,7 +386,7 @@ requestWarthogPacket = net.Packet("Request Warthog", function(sender)
         table.insert(warthogs, warthogInst.xscale)
     end
     if #warthogs > 0 then
-        warthogCreatePacket:sendAsHost(net.DIRECT, sender, #warthogs, table.unpack(warthogs))
+        warthogCreatePacket:sendAsHost(net.DIRECT, sender, #warthogs / 4, table.unpack(warthogs))
     end
 end)
 warthogJumpPacket = net.Packet("Jump Warthog", function(sender, actualPlayer, warthogID)
@@ -385,13 +396,7 @@ warthogJumpPacket = net.Packet("Jump Warthog", function(sender, actualPlayer, wa
             warthogJumpPacket:sendAsHost(net.ALL, nil, p:getNetIdentity(), warthogID)
         end
     end
-    local inst = nil
-    for _, warthogInst in ipairs(warthog:findAll()) do
-        if warthogInst:getData().id == warthogID then
-            inst = warthogInst
-            break
-        end
-    end
+    local inst = findVehicleById(warthog, warthogID)
     if inst ~= nil then
         if inst:isValid() then
             if inst:collidesMap(inst.x, inst.y + 1) then
@@ -418,33 +423,21 @@ turretFirePacket = net.Packet("Fire Warthog Turret", function(sender, actualPlay
         if not (noSound or noSoundWarthog) then
             soundPew:play(1 + math.random() / 2, 0.2)
         end
-        local inst = nil
-        for _, turretInst in ipairs(turret:findAll()) do
-            if turretInst:getData().id == turretID then
-                inst = turretInst
-                break
-            end
-        end
+        local inst = findVehicleById(turret, turretID)
         if inst ~= nil and inst:isValid() then
             inst:getData().turretShotCooldown = 6
         end
     end
 end)
 
-warthogStepPacket = net.Packet("Step Warthog", function(sender, actualPlayer, x, y, warthogID, tEC, dST, dEC, jPC, cW, aX, aY, sX, sY, fL, tST)
+warthogStepPacket = net.Packet("Step Warthog", function(sender, actualPlayer, x, y, warthogID, tEC, dST, dEC, jPC, cW, aX, aY, sX, sY, xS, tST)
     local p = actualPlayer:resolve()
     if p ~= nil then
         if p ~= net.localPlayer then
             if net.host then
-                warthogStepPacket:sendAsHost(net.ALL, nil, p:getNetIdentity(), x, y, warthogID, tEC, dST, dEC, jPC, cW, aX, aY, sX, sY, fL, tST)
+                warthogStepPacket:sendAsHost(net.ALL, nil, p:getNetIdentity(), x, y, warthogID, tEC, dST, dEC, jPC, cW, aX, aY, sX, sY, xS, tST)
             end
-            local inst = nil
-            for _, warthogInst in ipairs(warthog:findAll()) do
-                if warthogInst:getData().id == warthogID then
-                    inst = warthogInst
-                    break
-                end
-            end
+            local inst = findVehicleById(warthog, warthogID)
             if inst == nil then
                 inst = warthog:create(x, y)
             end
@@ -465,32 +458,32 @@ warthogStepPacket = net.Packet("Step Warthog", function(sender, actualPlayer, x,
                 instData.accelY = aY
                 instData.speedX = sX
                 instData.speedY = sY
-                instData.turretInst = tST
+                inst.xscale = xS
+                local turretInst = nil
+                if tST > -1 then
+                    turretInst = findVehicleById(turret, tST)
+                end
+                instData.turretInst = turretInst
             end
         end
     end
 end)
-turretStepPacket = net.Packet("Step Warthog Turret", function(sender, actualPlayer, turretID, turretAngle, turretShotCooldown)
+turretStepPacket = net.Packet("Step Warthog Turret", function(sender, actualPlayer, turretID, turretAngle, turretXScale, turretShotCooldown)
     local p = actualPlayer:resolve()
     if p ~= nil then
         if p ~= net.localPlayer then
             if net.host then
-                turretStepPacket:sendAsHost(net.ALL, nil, p:getNetIdentity(), turretID, turretAngle, turretShotCooldown)
+                turretStepPacket:sendAsHost(net.ALL, nil, p:getNetIdentity(), turretID, turretAngle, turretXScale, turretShotCooldown)
             end
-            local inst = nil
-            for _, turretInst in ipairs(turret:findAll()) do
-                if turretInst:getData().id == turretID then
-                    inst = turretInst
-                    break
-                end
-            end
+            local inst = findVehicleById(turret, turretID)
             if inst ~= nil then
                 if inst:isValid() then
                     local instData = inst:getData()
                     local xx, yy = getPos(p, inst)
                     p:set("ghost_x", xx):set("ghost_y", yy)
                 
-                    instData.turretAngle = turretAngle
+                    inst.angle = turretAngle
+                    inst.xscale = turretXScale
                     instData.turretShotCooldown = turretShotCooldown
                 end
             end
@@ -505,13 +498,7 @@ warthogEnterPacket = net.Packet("Enter Warthog", function(sender, actualPlayer, 
         end
         p:set("activity", ACTIVITY_WARTHOG_DRIVER)
     end
-    local inst = nil
-    for _, warthogInst in ipairs(warthog:findAll()) do
-        if warthogInst:getData().id == warthogID then
-            inst = warthogInst
-            break
-        end
-    end
+    local inst = findVehicleById(warthog, warthogID)
     if inst ~= nil then
         if inst:isValid() then
             local instData = inst:getData()
@@ -533,16 +520,11 @@ warthogLeavePacket = net.Packet("Leave Warthog", function(sender, actualPlayer, 
         p:set("activity", 0):set("canrope", 1)
         p:getData().driving = nil
     end
-    local inst = nil
-    for _, warthogInst in ipairs(warthog:findAll()) do
-        if warthogInst:getData().id == warthogID then
-            inst = warthogInst
-            break
-        end
-    end
+    local inst = findVehicleById(warthog, warthogID)
     if inst ~= nil then
         if inst:isValid() then
             local instData = inst:getData()
+            instData.accelX = 0
             instData.drawDriverSeatPopup = 1
             instData.driverSeatTaken = 0
             instData.driverEnterCooldown = 60
@@ -552,13 +534,7 @@ warthogLeavePacket = net.Packet("Leave Warthog", function(sender, actualPlayer, 
 end)
 outsideScreenWarthogPacket = net.Packet("Outside Screen Warthog", function(sender, actualPlayer, warthogID)
     local p = actualPlayer:resolve()
-    local inst = nil
-    for _, warthogInst in ipairs(warthog:findAll()) do
-        if warthogInst:getData().id == warthogID then
-            inst = warthogInst
-            break
-        end
-    end
+    local inst = findVehicleById(warthog, warthogID)
     if inst ~= nil and inst:isValid() then
         for _, turretInst in ipairs(turret:findAll()) do
             if turret:getData().warthog:getData().id == warthogID then
@@ -572,18 +548,16 @@ end)
 turretEnterPacket = net.Packet("Enter Warthog Turret", function(sender, actualPlayer, warthogID, turretID, x, y)
     local p = actualPlayer:resolve()
     local turretInst = turret:create(x, y)
-    turretInst:getData().id = turretID
-    local inst = nil
-    for _, warthogInst in ipairs(warthog:findAll()) do
-        if warthogInst:getData().id == warthogID then
-            inst = warthogInst
-            break
-        end
+    if net.host then
+        turretInst:getData().id = nextVehicleID()
+    else
+        turretInst:getData().id = turretID
     end
+    local inst = findVehicleById(warthog, warthogID)
     turretInst:getData().warthog = inst
     if p ~= nil then
         if net.host then
-            turretEnterPacket:sendAsHost(net.ALL, nil, p:getNetIdentity(), warthogID, x, y)
+            turretEnterPacket:sendAsHost(net.ALL, nil, p:getNetIdentity(), warthogID, turretInst:getData().id, x, y)
         end
         p:set("activity", ACTIVITY_WARTHOG_TURRET)
         p:getData().driving = turretInst
@@ -610,13 +584,7 @@ turretLeavePacket = net.Packet("Leave Warthog Turret", function(sender, actualPl
         p:set("activity", 0):set("canrope", 1)
         p:getData().driving = nil
     end
-    local inst = nil
-    for _, turretInst in ipairs(turret:findAll()) do
-        if turretInst:getData().id == turretID then
-            inst = turretInst
-            break
-        end
-    end
+    local inst = findVehicleById(turret, turretID)
     if inst ~= nil then
         if inst:isValid() then
             inst:destroy()
@@ -625,13 +593,7 @@ turretLeavePacket = net.Packet("Leave Warthog Turret", function(sender, actualPl
 end)
 outsideScreenTurretPacket = net.Packet("Outside Screen Warthog Turret", function(sender, actualPlayer, turretID)
     local p = actualPlayer:resolve()
-    local inst = nil
-    for _, turretInst in ipairs(turret:findAll()) do
-        if turretInst:getData().id == turretID then
-            inst = turretInst
-            break
-        end
-    end
+    local inst = findVehicleById(turret, turretID)
     if inst ~= nil and inst:isValid() then
         inst:destroy()
     end
@@ -671,72 +633,72 @@ registercallback("onPlayerDeath", function(player)
 end)
 
 registercallback("onPlayerStep", function(player)
-    if not net.online or player == net.localPlayer then
-        local playerData = player:getData()
-    
-        if playerData.driving ~= nil then
-            local drivingObj = playerData.driving:getObject()
-            if drivingObj == turret or drivingObj == warthog then
-                player:set("pVspeed", 0)
-                for _, i in ipairs({0, 2, 3, 4, 5}) do
-                    player:setAlarm(i, math.max(player:getAlarm(i), 1))
-                end
-                player:set("canrope", 0)
+    local playerData = player:getData()
+
+    if playerData.driving ~= nil then
+        local drivingObj = playerData.driving:getObject()
+        if drivingObj == turret or drivingObj == warthog then
+            player:set("pVspeed", 0)
+            for _, i in ipairs({0, 2, 3, 4, 5}) do
+                player:setAlarm(i, math.max(player:getAlarm(i), 1))
             end
-            if drivingObj == turret then
-                local turretInstance = playerData.driving
-                if turretInstance:isValid() then
-                    player.x, player.y = getPos(player, turretInstance)
-                    
-                    if net.host then
-                        if player:get("outside_screen") == 89 then
-                            local tID = turretInstance:getData().id
+            player:set("canrope", 0)
+        end
+        if drivingObj == turret then
+            local turretInstance = playerData.driving
+            if turretInstance:isValid() then
+                player.x, player.y = getPos(player, turretInstance)
+                
+                if net.host then
+                    if player:get("outside_screen") == 89 then
+                        local tID = turretInstance:getData().id
+                        turretInstance:destroy()
+                        player:set("activity", 0):set("canrope", 1)
+                        playerData.driving = nil
+                        outsideScreenTurretPacket:sendAsHost(net.ALL, nil, player:getNetIdentity(), tID)
+                    end
+                end
+            end
+            
+        elseif drivingObj == warthog then
+            local warthogInstance = playerData.driving
+            if warthogInstance:isValid() then
+                player.x, player.y = getPos(player, warthogInstance)
+                
+                if net.host then
+                    if player:get("outside_screen") == 89 then
+                        local turretInstance = warthogInstance:getData().turretInst
+                        if turretInstance ~= nil and turretInstance:isValid() then
                             turretInstance:destroy()
-                            player:set("activity", 0):set("canrope", 1)
-                            playerData.driving = nil
-                            outsideScreenTurretPacket:sendAsHost(net.ALL, nil, player:getNetIdentity(), tID)
+                            warthogInstance:getData().turretInst = nil
                         end
+                        local wID = warthogInstance:getData().id
+                        warthogInstance:destroy()
+                        player:set("activity", 0):set("canrope", 1)
+                        playerData.driving = nil
+                        
+                        outsideScreenWarthogPacket:sendAsHost(net.ALL, nil, player:getNetIdentity(), wID)
                     end
                 end
-                
-            elseif drivingObj == warthog then
-                local warthogInstance = playerData.driving
-                if warthogInstance:isValid() then
-                    player.x, player.y = getPos(player, warthogInstance)
-                    
-                    if net.host then
-                        if player:get("outside_screen") == 89 then
-                            local turretInstance = warthogInstance:getData().turretInst
-                            if turretInstance ~= nil and turretInstance:isValid() then
-                                turretInstance:destroy()
-                                warthogInstance:getData().turretInst = nil
-                            end
-                            local wID = warthogInstance:getData().id
-                            warthogInstance:destroy()
-                            player:set("activity", 0):set("canrope", 1)
-                            playerData.driving = nil
-                            
-                            outsideScreenWarthogPacket:sendAsHost(net.ALL, nil, player:getNetIdentity(), wID)
-                        end
-                    end
-                else
-                    playerData.driving = nil
-                end
-                
-                if not (noSound or noSoundWarthog) then
-                    if not soundIdle:isPlaying() then
-                        soundIdle:play(1, 0.3)
-                    end
+            else
+                playerData.driving = nil
+            end
+            
+            if not (noSound or noSoundWarthog) then
+                if not soundIdle:isPlaying() then
+                    soundIdle:play(1, 0.3)
                 end
             end
         end
-        if playerData.driving == nil then
-            local pActivity = player:get("activity")
-            if pActivity == ACTIVITY_WARTHOG_DRIVER or pActivity == ACTIVITY_WARTHOG_TURRET then
-                player:set("activity", 0):set("canrope", 1)
-            end
+    end
+    if playerData.driving == nil then
+        local pActivity = player:get("activity")
+        if pActivity == ACTIVITY_WARTHOG_DRIVER or pActivity == ACTIVITY_WARTHOG_TURRET then
+            player:set("activity", 0):set("canrope", 1)
         end
+    end
     
+    if not net.online or player == net.localPlayer then
         local holding = {}
         for _, dir in ipairs({"up", "down", "left", "right"}) do
             holding[dir] = player:control(dir) == input.HELD
@@ -950,7 +912,7 @@ registercallback("onPlayerStep", function(player)
                                 local turretX = warthogInstance.x + important.turretOffsetX
                                 local turretY = warthogInstance.y + important.turretOffsetY
                                 if not net.host then
-                                    turretEnterPacket:sendAsClient(player:getNetIdentity(), warthogInstance:getData().id, turretInstance:getData().id, turretX, turretY)
+                                    turretEnterPacket:sendAsClient(player:getNetIdentity(), warthogInstance:getData().id, -1, turretX, turretY)
                                 else
                                     turretInstance = turret:create(turretX, turretY)
                                     local turretData = turretInstance:getData()
@@ -1006,8 +968,10 @@ registercallback("onPlayerStep", function(player)
         if warthogInstance ~= nil then
             if warthogInstance:isValid() and playerData.driving ~= nil and playerData.driving == warthogInstance then
                 local warthogData = warthogInstance:getData()
+                local turretInst = warthogData.turretInst
                 warthogStepPacket:sendAsClient(player:getNetIdentity(),
                     warthogInstance.x, warthogInstance.y,
+                    warthogData.id,
                     warthogData.turretEnterCooldown,
                     warthogData.driverSeatTaken,
                     warthogData.driverEnterCooldown,
@@ -1017,11 +981,12 @@ registercallback("onPlayerStep", function(player)
                     warthogData.accelY,
                     warthogData.speedX,
                     warthogData.speedY,
-                    warthogData.facingLeft,
-                    warthogData.turretInst
+                    warthogInstance.xscale,
+                    turretInst == nil and -1 or turretInst:getData().id
                 )
                 warthogStepPacket:sendAsHost(net.ALL, nil, player:getNetIdentity(),
                     warthogInstance.x, warthogInstance.y,
+                    warthogData.id,
                     warthogData.turretEnterCooldown,
                     warthogData.driverSeatTaken,
                     warthogData.driverEnterCooldown,
@@ -1031,8 +996,8 @@ registercallback("onPlayerStep", function(player)
                     warthogData.accelY,
                     warthogData.speedX,
                     warthogData.speedY,
-                    warthogData.facingLeft,
-                    warthogData.turretInst
+                    warthogInstance.xscale,
+                    turretInst == nil and -1 or turretInst:getData().id
                 )
             end
         end
@@ -1040,11 +1005,15 @@ registercallback("onPlayerStep", function(player)
             if turretInstance:isValid() and playerData.driving ~= nil and playerData.driving == turretInstance then
                 local turretData = turretInstance:getData()
                 turretStepPacket:sendAsClient(player:getNetIdentity(),
+                    turretData.id,
                     turretInstance.angle,
+                    turretInstance.xscale,
                     turretData.turretShotCooldown
                 )
                 turretStepPacket:sendAsHost(net.ALL, nil, player:getNetIdentity(),
+                    turretData.id,
                     turretInstance.angle,
+                    turretInstance.xscale,
                     turretData.turretShotCooldown
                 )
             end

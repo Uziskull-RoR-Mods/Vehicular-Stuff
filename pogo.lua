@@ -246,10 +246,10 @@ end)
 pogoCreatePacket = net.Packet("Pogo Create", function(sender, numPogos, ...) -- x1, y1, color1, x2, y2, color2, x3, y3, color3, x4, y4, color4)
     local pogos = {...}
     for i = 1, numPogos do
-        j = 1 + (i - 1) * 3
+        j = 1 + (i - 1) * 4
         local pinst = pogo:create(pogos[j], pogos[j+1])
         pinst:getData().id = pogos[j+2]
-        pinst.sprite = pogos[j+3]
+        pinst.sprite = Sprite.fromID(pogos[j+3])
     end
 end)
 requestPogoPacket = net.Packet("Request Pogo", function(sender)
@@ -258,10 +258,10 @@ requestPogoPacket = net.Packet("Request Pogo", function(sender)
         table.insert(pogos, pogoInst.x)
         table.insert(pogos, pogoInst.y)
         table.insert(pogos, pogoInst:getData().id)
-        table.insert(pogos, pogoInst.sprite)
+        table.insert(pogos, pogoInst.sprite.id)
     end
     if #pogos > 0 then
-        pogoCreatePacket:sendAsHost(net.DIRECT, sender, #pogos, table.unpack(pogos))
+        pogoCreatePacket:sendAsHost(net.DIRECT, sender, #pogos / 4, table.unpack(pogos))
     end
 end)
 
@@ -286,7 +286,7 @@ pogoEnterPacket = net.Packet("Enter Pogo", function(sender, actualPlayer, pogoID
     local p = actualPlayer:resolve()
     if p ~= nil then
         if net.host then
-            pogoEnterPacket:sendAsHost(net.EXCLUDE, sender, p:getNetIdentity(), pogoID)
+            pogoEnterPacket:sendAsHost(net.ALL, nil, p:getNetIdentity(), pogoID)
         end
         local pogoInst = nil
         for _, inst in ipairs(pogo:findAll()) do
@@ -309,7 +309,7 @@ pogoLeavePacket = net.Packet("Leave Pogo", function(sender, actualPlayer, pogoID
     local p = actualPlayer:resolve()
     if p ~= nil then
         if net.host then
-            pogoLeavePacket:sendAsHost(net.EXCLUDE, sender, p:getNetIdentity(), pogoID)
+            pogoLeavePacket:sendAsHost(net.ALL, nil, p:getNetIdentity(), pogoID)
         end
         local pogoInst = nil
         for _, inst in ipairs(pogo:findAll()) do
@@ -326,23 +326,32 @@ pogoLeavePacket = net.Packet("Leave Pogo", function(sender, actualPlayer, pogoID
         end
     end
 end)
-pogoStepPacket = net.Packet("Step Pogo", function(sender, actualPlayer, x, y, eC, r, fL, dP, hJ, hD)
+pogoStepPacket = net.Packet("Step Pogo", function(sender, actualPlayer, x, y, pogoID, eC, r, xS, dP, hJ, hD)
     local p = actualPlayer:resolve()
     if p ~= nil then
         if p ~= net.localPlayer then
             if net.host then
-                pogoStepPacket:sendAsHost(net.EXCLUDE, sender, p:getNetIdentity(), x, y, eC, r, fL, dP, hJ, hD)
+                pogoStepPacket:sendAsHost(net.EXCLUDE, sender, p:getNetIdentity(), x, y, pogoID, eC, r, xS, dP, hJ, hD)
             end
             local pogoInst = p:getData().driving
+            -- local pogoInst = nil
+            -- for _, inst in ipairs(pogo:findAll()) do
+                -- if inst:getData().id == pogoID then
+                    -- pogoInst = inst
+                    -- break
+                -- end
+            -- end
+            
             if pogoInst ~= nil and pogoInst:isValid() then
                 pogoInst.x, pogoInst.y = x, y
             
                 local xx, yy = getPos(p, pogoInst)
                 p:set("ghost_x", xx):set("ghost_y", yy)
                 
+                local pogoData = pogoInst:getData()
                 pogoData.enterCooldown = eC
                 pogoData.riding = r
-                pogoData.facingLeft = fL
+                pogoInst.xscale = xS
                 pogoData.drawPopup = dP
                 pogoData.heldJump = hJ
                 pogoData.heldDirection = hD
@@ -379,38 +388,38 @@ registercallback("onPlayerDeath", function(player)
 end)
 
 registercallback("onPlayerStep", function(player)
-    if not net.online or player == net.localPlayer then
-        local playerData = player:getData()
-        
-        if playerData.driving ~= nil then
-            local drivingObj = playerData.driving:getObject()
-            if drivingObj == pogo then
-                player:set("pVspeed", 0)
-                for _, i in ipairs({0, 2, 3, 4, 5}) do
-                    player:setAlarm(i, math.max(player:getAlarm(i), 1))
-                end
-                player:set("canrope", 0)
+    local playerData = player:getData()
+    
+    if playerData.driving ~= nil then
+        local drivingObj = playerData.driving:getObject()
+        if drivingObj == pogo then
+            player:set("pVspeed", 0)
+            for _, i in ipairs({0, 2, 3, 4, 5}) do
+                player:setAlarm(i, math.max(player:getAlarm(i), 1))
+            end
+            player:set("canrope", 0)
+            
+            if playerData.driving:isValid() then
+                player.x, player.y = getPos(player, playerData.driving)
                 
-                if playerData.driving:isValid() then
-                    player.x, player.y = getPos(player, playerData.driving)
-                    
-                    if net.host then
-                        if player:get("outside_screen") == 89 then
-                            local pogoID = playerData.driving:getData().id
-                            playerData.driving:destroy()
-                            player:set("activity", 0):set("canrope", 1)
-                            playerData.driving = nil
-                            outsideScreenPogoPacket:sendAsHost(net.ALL, nil, player:getNetIdentity(), pogoID)
-                        end
+                if net.host then
+                    if player:get("outside_screen") == 89 then
+                        local pogoID = playerData.driving:getData().id
+                        playerData.driving:destroy()
+                        player:set("activity", 0):set("canrope", 1)
+                        playerData.driving = nil
+                        outsideScreenPogoPacket:sendAsHost(net.ALL, nil, player:getNetIdentity(), pogoID)
                     end
                 end
             end
-        else
-            if player:get("activity") == ACTIVITY_POGO_DRIVER then
-                player:set("activity", 0):set("canrope", 1)
-            end
         end
+    else
+        if player:get("activity") == ACTIVITY_POGO_DRIVER then
+            player:set("activity", 0):set("canrope", 1)
+        end
+    end
         
+    if not net.online or player == net.localPlayer then
         local holding = {}
         for _, dir in ipairs({"left", "right"}) do
             holding[dir] = player:control(dir) == input.HELD
@@ -466,7 +475,7 @@ registercallback("onPlayerStep", function(player)
                                 pogoData.drawPopup = 0
                                 pogoData.enterCooldown = 60
                                 
-                                pogoEnterPacket:sendAsHost(net.ALL, nil, player:getNetIdentity(), pogoInst:getData().id)
+                                pogoEnterPacket:sendAsHost(net.ALL, nil, player:getNetIdentity(), pogoData.id)
                             end
                         end
                     end
@@ -481,18 +490,20 @@ registercallback("onPlayerStep", function(player)
         if playerData.driving ~= nil and playerData.driving == pogoInst and pogoData ~= nil then
             pogoStepPacket:sendAsClient(player:getNetIdentity(),
                 pogoInst.x, pogoInst.y,
+                pogoData.id,
                 pogoData.enterCooldown,
                 pogoData.riding,
-                pogoData.facingLeft,
+                pogoInst.xscale,
                 pogoData.drawPopup,
                 pogoData.heldJump,
                 pogoData.heldDirection
             )
             pogoStepPacket:sendAsHost(net.ALL, nil, player:getNetIdentity(),
                 pogoInst.x, pogoInst.y,
+                pogoData.id,
                 pogoData.enterCooldown,
                 pogoData.riding,
-                pogoData.facingLeft,
+                pogoInst.xscale,
                 pogoData.drawPopup,
                 pogoData.heldJump,
                 pogoData.heldDirection
